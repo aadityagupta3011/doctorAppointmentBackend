@@ -5,13 +5,21 @@ import { sendOtpMail } from "../utils/sendOtp.js";
 
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, gender, address, city, state, password, role } = req.body;
+    const { name, email, phone, gender, address, city, state, password } = req.body;
+
+    // stop anyone from trying to send role manually
+    if (req.body.role) {
+      return res.status(400).json({
+        message: "role cannot be selected during registration"
+      });
+    }
 
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // otp generate
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -26,7 +34,7 @@ export const register = async (req, res) => {
       city,
       state,
       password: hashedPassword,
-      role,
+      role: "patient", // 🔥 always patient
       otp,
       otpExpires
     });
@@ -37,6 +45,8 @@ export const register = async (req, res) => {
     res.status(500).json({ message: "server error", error: err.message });
   }
 };
+
+
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -82,6 +92,61 @@ export const login = async (req, res) => {
     );
 
     res.json({ message: "login successful", token, user });
+
+  } catch (err) {
+    res.status(500).json({ message: "server error", error: err.message });
+  }
+};
+
+export const createDoctor = async (req, res) => {
+  try {
+    const { name, email, phone, gender, address, city, state, password, specialization, experience, fees } = req.body;
+
+    const exist = await User.findOne({ email });
+    if (exist) return res.status(400).json({ message: "email already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await User.create({
+      name,
+      email,
+      phone,
+      gender,
+      address,
+      city,
+      state,
+      password: hashedPassword,
+      role: "doctor",
+      isVerified: true // admin verified
+    });
+
+    res.status(201).json({ message: "doctor account created successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "server error", error: err.message });
+  }
+};
+
+
+export const createAdmin = async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    const exist = await User.findOne({ email });
+    if (exist) return res.status(400).json({ message: "email already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await User.create({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      role: "admin",
+      isVerified: true
+    });
+
+    res.status(201).json({ message: "admin created successfully" });
 
   } catch (err) {
     res.status(500).json({ message: "server error", error: err.message });
