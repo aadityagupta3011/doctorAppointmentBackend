@@ -22,7 +22,7 @@ export const register = async (req, res) => {
     // otp generate
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
+    console.log("OTP : " , otp);
     await sendOtpMail(email, otp);
 
     await User.create({
