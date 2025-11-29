@@ -3,6 +3,9 @@ import User from "../models/userModel.js";
 import DoctorProfile from "../models/doctorModel.js";
 
 export const createDoctor = async (req, res) => {
+  const session = await User.startSession();
+  session.startTransaction();
+
   try {
     const { 
       name, email, phone, password, gender,
@@ -15,8 +18,8 @@ export const createDoctor = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user account
-    const user = await User.create({
+    // Create user
+    const user = await User.create([{
       name,
       email,
       phone,
@@ -27,21 +30,76 @@ export const createDoctor = async (req, res) => {
       password: hashedPassword,
       role: "doctor",
       isVerified: true
-    });
+    }], { session });
 
-    // Create separate doctor profile
-    await DoctorProfile.create({
-      userId: user._id,
+    // Create doctor profile
+    await DoctorProfile.create([{
+      userId: user[0]._id,
       specialization,
       experience,
       qualification,
       fees,
       clinicAddress
-    });
+    }], { session });
+
+    // Commit both operations
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({ message: "doctor created successfully" });
 
   } catch (err) {
-    res.status(500).json({ message: "server error", error: err.message });
+    // Rollback - remove partial user
+    await session.abortTransaction();
+    session.endSession();
+
+    res.status(400).json({
+      message: "invalid doctor data",
+      error: err.message
+    });
   }
 };
+
+export const getAllDoctors = async (req, res) => {
+  try {
+    const doctors = await DoctorProfile
+      .find()
+      .populate("userId", "name email phone gender address city state");
+
+    res.status(200).json({
+      message: "doctors fetched successfully",
+      count: doctors.length,
+      doctors
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: "server error",
+      error: err.message
+    });
+  }
+};
+
+export const getDoctorDetails = async (req, res) => {
+  try {
+    const doctor = await DoctorProfile
+      .findOne({ userId: req.params.id })
+      .populate("userId", "name email phone gender address city state");
+
+    if (!doctor) {
+      return res.status(404).json({ message: "doctor not found" });
+    }
+
+    res.status(200).json({
+      message: "doctor details fetched successfully",
+      doctor
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: "server error",
+      error: err.message
+    });
+  }
+};
+  

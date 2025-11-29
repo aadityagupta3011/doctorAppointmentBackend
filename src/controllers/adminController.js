@@ -3,7 +3,7 @@ import User from "../models/userModel.js";
 
 export const createAdmin = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password } = req.body;  
 
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "email already exists" });

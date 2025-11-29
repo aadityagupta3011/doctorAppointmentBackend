@@ -11,4 +11,5 @@ const router = express.Router();
 router.post("/create-doctor", auth, adminOnly, createDoctor);
 router.post("/create-admin", auth, adminOnly, createAdmin);
 
+
 export default router;
