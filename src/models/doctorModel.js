@@ -8,6 +8,7 @@ const doctorSchema = new mongoose.Schema({
   },
   specialization: { type: String, required: true },
   experience: { type: Number, required: true }, // in years
+  licenceNumber:{type:String,required:true},
   qualification: { type: String, required: true },
   fees: { type: Number, required: true },
   clinicAddress: { type: String, required: true },

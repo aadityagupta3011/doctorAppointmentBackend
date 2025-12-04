@@ -3,14 +3,11 @@ import User from "../models/userModel.js";
 import DoctorProfile from "../models/doctorModel.js";
 
 export const createDoctor = async (req, res) => {
-  const session = await User.startSession();
-  session.startTransaction();
-
   try {
     const { 
       name, email, phone, password, gender,
       address, city, state, 
-      specialization, experience, qualification, fees, clinicAddress 
+      specialization, experience, licenceNumber, qualification, fees, clinicAddress 
     } = req.body;
 
     const exist = await User.findOne({ email });
@@ -19,7 +16,7 @@ export const createDoctor = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const user = await User.create([{
+    const user = await User.create({
       name,
       email,
       phone,
@@ -30,35 +27,35 @@ export const createDoctor = async (req, res) => {
       password: hashedPassword,
       role: "doctor",
       isVerified: true
-    }], { session });
+    });
 
-    // Create doctor profile
-    await DoctorProfile.create([{
-      userId: user[0]._id,
-      specialization,
-      experience,
-      qualification,
-      fees,
-      clinicAddress
-    }], { session });
-
-    // Commit both operations
-    await session.commitTransaction();
-    session.endSession();
+    // Try creating doctor profile
+    try {
+      await DoctorProfile.create({
+        userId: user._id,
+        specialization,
+        experience,
+        licenceNumber,
+        qualification,
+        fees,
+        clinicAddress
+      });
+    } catch (error) {
+      // If profile creation fails, delete created user
+      await User.findByIdAndDelete(user._id);
+      throw error;
+    }
 
     res.status(201).json({ message: "doctor created successfully" });
 
   } catch (err) {
-    // Rollback - remove partial user
-    await session.abortTransaction();
-    session.endSession();
-
     res.status(400).json({
       message: "invalid doctor data",
       error: err.message
     });
   }
 };
+
 
 export const getAllDoctors = async (req, res) => {
   try {

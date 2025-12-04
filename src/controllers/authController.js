@@ -3,14 +3,16 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { sendOtpMail } from "../utils/sendOtp.js";
 
+
+
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, gender, address, city, state, password } = req.body;
+    const { name, email, phone, gender, address, city, state, password, role } = req.body;
 
-    // stop anyone from trying to send role manually
-    if (req.body.role) {
+    // stop anyone from setting role other than doctor or patient
+    if (role && role !== "doctor") {
       return res.status(400).json({
-        message: "role cannot be selected during registration"
+        message: "invalid role selection"
       });
     }
 
@@ -19,27 +21,36 @@ export const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // otp generate
+    // 👉 IF user is doctor, do NOT verify & do NOT send OTP
+    if (role === "doctor") {
+      await User.create({
+        name, email, phone, gender, address, city, state,
+        password: hashedPassword,
+        role: "doctor",
+        isVerified: false // will be verified by admin
+      });
+
+      return res.status(201).json({
+        message: "Doctor registration completed. Please wait for admin verification."
+      });
+    }
+
+    // 👉 ELSE Normal Patient Registration
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    console.log("OTP : " , otp);
+    console.log("OTP:", otp);
+
     await sendOtpMail(email, otp);
 
     await User.create({
-      name,
-      email,
-      phone,
-      gender,
-      address,
-      city,
-      state,
+      name, email, phone, gender, address, city, state,
       password: hashedPassword,
-      role: "patient", // 🔥 always patient
+      role: "patient",
       otp,
       otpExpires
     });
 
-    res.status(201).json({ message: "otp sent to your email" });
+    res.status(201).json({ message: "OTP sent to your email" });
 
   } catch (err) {
     res.status(500).json({ message: "server error", error: err.message });
@@ -72,6 +83,7 @@ export const verifyOtp = async (req, res) => {
     res.status(500).json({ message: "server error", error: err.message });
   }
 };
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -79,11 +91,22 @@ export const login = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "invalid email" });
 
-    if (!user.isVerified)
-      return res.status(400).json({ message: "please verify your email first" });
-
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ message: "invalid password" });
+
+    // 🚨 If doctor not verified by admin
+    if (user.role === "doctor" && !user.isVerified) {
+      return res.status(403).json({
+        message: "Your doctor account is not verified by admin. Please contact admin."
+      });
+    }
+
+    // 🚨 If patient not verified (otp pending)
+    if (user.role === "patient" && !user.isVerified) {
+      return res.status(400).json({
+        message: "Please verify your email first."
+      });
+    }
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -97,6 +120,7 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "server error", error: err.message });
   }
 };
+
 
 export const createDoctor = async (req, res) => {
   try {
