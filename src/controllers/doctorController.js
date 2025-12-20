@@ -184,3 +184,43 @@ export const setAvailability = async (req, res) => {
     });
   }
 };
+
+
+export const toggleAvailability = async (req, res) => {
+  try {
+    const { isAvailable } = req.body;
+
+    // validation
+    if (typeof isAvailable !== "boolean") {
+      return res.status(400).json({
+        message: "isAvailable must be true or false"
+      });
+    }
+
+    // update availability
+    const availability = await DoctorAvailability.findOneAndUpdate(
+      { doctorId: req.user.id },
+      { isAvailable },
+      { new: true }
+    );
+
+    if (!availability) {
+      return res.status(404).json({
+        message: "availability not set yet"
+      });
+    }
+
+    res.json({
+      message: isAvailable
+        ? "doctor is now available"
+        : "doctor is now unavailable",
+      availability
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "server error",
+      error: error.message
+    });
+  }
+};
