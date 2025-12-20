@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import User from "../models/userModel.js";
 import DoctorProfile from "../models/doctorModel.js";
+import DoctorAvailability from "../models/DoctorAvailabilityModel.js";
 
 export const createDoctor = async (req, res) => {
   try {
@@ -99,4 +100,87 @@ export const getDoctorDetails = async (req, res) => {
     });
   }
 };
-  
+
+export const getMyProfile = async (req, res) => {
+  try {
+    const doctorProfile = await DoctorProfile.findOne({ userId: req.user.id })
+      .populate("userId", "name email phone");
+
+    if (!doctorProfile) {
+      return res.status(404).json({ message: "doctor profile not found" });
+    }
+
+    res.json(doctorProfile);
+
+  } catch (err) {
+    res.status(500).json({ message: "server error" });
+  }
+};
+export const updateMyProfile = async (req, res) => {
+  try {
+    const doctorProfile = await DoctorProfile.findOneAndUpdate(
+      { userId: req.user.id },
+      {
+        ...req.body,
+        userId: req.user.id   // ensure userId exists on first create
+      },
+      {
+        new: true,
+        upsert: true          // 🔥 THIS IS THE KEY
+      }
+    );
+
+    res.json({
+      message: "profile updated successfully",
+      doctorProfile
+    });
+
+  } catch (err) {
+    res.status(400).json({ message: "invalid data", error: err.message });
+  }
+};
+
+
+export const updateDoctorName = async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    await User.findByIdAndUpdate(req.user.id, { name });
+
+    res.json({ message: "name updated successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "server error" });
+  }
+};
+
+export const setAvailability = async (req, res) => {
+  try {
+    const { fromTime, toTime } = req.body;
+
+    if (!fromTime || !toTime) {
+      return res.status(400).json({ message: "fromTime and toTime are required" });
+    }
+
+    if (fromTime >= toTime) {
+      return res.status(400).json({ message: "fromTime must be before toTime" });
+    }
+
+    const availability = await DoctorAvailability.findOneAndUpdate(
+      { doctorId: req.user.id },
+      { fromTime, toTime },
+      { new: true, upsert: true }
+    );
+
+    res.json({
+      message: "availability set successfully",
+      availability
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "server error",
+      error: error.message
+    });
+  }
+};
